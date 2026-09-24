@@ -41,8 +41,6 @@ sudo ./install.sh \
   --camera-url "http://GO2RTC_IP:1984/api/stream.mp4?src=CAMERA_NAME"
 ```
 
-Because the repository is public, cloning it does not require GitHub authentication.
-
 ## Installer options
 
 ```text
