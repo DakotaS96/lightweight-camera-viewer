@@ -1,0 +1,12 @@
+# Local camera/viewer configuration
+*.url
+*.env
+camera-viewer.local
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+
+# Temporary/log files
+*.log
+*.tmp
