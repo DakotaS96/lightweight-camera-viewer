@@ -38,7 +38,7 @@ Example:
 git clone https://github.com/YOUR_ACCOUNT/lightweight-camera-viewer.git && \
 cd lightweight-camera-viewer && \
 sudo ./install.sh \
-  --camera-url "http://192.168.86.47:1984/api/stream.mp4?src=FrontDoor_sub"
+  --camera-url "http://GO2RTC_IP:1984/api/stream.mp4?src=CAMERA_NAME"
 ```
 
 Because the repository is private, GitHub authentication must already be
