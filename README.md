@@ -30,19 +30,18 @@ The RTSP source must provide H.264 that the Pi's V4L2 decoder can decode.
 ## Fresh Pi restore
 
 Flash Raspberry Pi OS, create your normal user, get the Pi online, then clone
-this private repository and run the installer.
+this repository and run the installer.
 
 Example:
 
 ```bash
-git clone https://github.com/YOUR_ACCOUNT/lightweight-camera-viewer.git && \
+git clone https://github.com/DakotaS96/lightweight-camera-viewer.git && \
 cd lightweight-camera-viewer && \
 sudo ./install.sh \
   --camera-url "http://GO2RTC_IP:1984/api/stream.mp4?src=CAMERA_NAME"
 ```
 
-Because the repository is private, GitHub authentication must already be
-available to `git clone` (SSH key, Git credential helper, or a GitHub token).
+Because the repository is public, cloning it does not require GitHub authentication.
 
 ## Installer options
 
