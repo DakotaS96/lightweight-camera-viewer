@@ -10,9 +10,11 @@ A minimal fullscreen H.264 camera viewer for Raspberry Pi using:
 
 This project is intended for low-resource Raspberry Pis where running a full web browser just to display a live camera feed can use too much CPU and memory.
 
+This project is intended for low-resource Raspberry Pis where running a full web browser just to display a live camera feed can use too much CPU and memory.
+
 > **Important for older Raspberry Pis**
 >
-> A **go2rtc server is required for older Raspberry Pi use with this setup**, including the Raspberry Pi 3 A+ configuration this project was tested on.
+> A **[go2rtc](https://github.com/AlexxIT/go2rtc) server is required for older Raspberry Pi use with this setup**, including the Raspberry Pi 3 A+ configuration this project was tested on.
 >
 > go2rtc sits between the camera and the Raspberry Pi and provides a clean H.264 stream that GStreamer can decode efficiently with the Pi's hardware decoder.
 >
