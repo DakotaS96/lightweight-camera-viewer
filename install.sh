@@ -1,250 +1,259 @@
 #!/usr/bin/env bash
-set -Eeuo pipefail
+set -euo pipefail
 
-PROGRAM_NAME="lightweight-cog-kiosk"
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-KIOSK_URL=""
-KIOSK_USER="${SUDO_USER:-}"
-REFRESH_MINUTES=30
-ENABLE_REFRESH=1
-HIDE_CURSOR=1
+APP_NAME="lightweight-camera-viewer"
+SERVICE_NAME="${APP_NAME}.service"
+CONFIG_FILE="/etc/default/${APP_NAME}"
+WRAPPER="/usr/local/bin/${APP_NAME}"
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}"
+CRON_FILE="/etc/cron.d/${APP_NAME}-reboot"
+
+CAMERA_URL=""
+VIEWER_USER="${SUDO_USER:-${USER}}"
+REBOOT_TIME="03:00"
+NO_REBOOT_JOB=0
 
 usage() {
-    cat <<'EOF'
+  cat <<'EOF'
+Lightweight Hardware Camera Viewer installer
+
 Usage:
-  sudo ./install.sh --url URL [--user USER] [--refresh-minutes MINUTES]
-  sudo ./install.sh --url URL [--user USER] --no-refresh [--show-cursor]
+  sudo ./install.sh --camera-url "URL" [options]
+
+Required:
+  --camera-url URL       Camera stream URL.
+                         Supported:
+                           - go2rtc progressive MP4:
+                             http://HOST:1984/api/stream.mp4?src=NAME
+                           - H.264 RTSP:
+                             rtsp://HOST:8554/NAME
 
 Options:
-  --url URL                  Website displayed by Cog (required on first run)
-  --user USER                Unprivileged kiosk user (default: invoking user)
-  --refresh-minutes MINUTES  Full page reload interval (default: 30)
-  --no-refresh               Do not install the periodic reload watchdog
-  --hide-cursor              Hide the mouse cursor (default)
-  --show-cursor              Show the cursor for interactive kiosks
-  -h, --help                 Show this help
+  --user USER            Linux user that owns the kiosk session.
+                         Default: the user who invoked sudo.
+  --reboot-time HH:MM    Nightly reboot time. Default: 03:00
+  --no-nightly-reboot    Do not create the nightly reboot job.
+  -h, --help             Show this help.
+
+Example:
+  sudo ./install.sh \
+    --camera-url "http://192.168.86.47:1984/api/stream.mp4?src=FrontDoor_sub"
 EOF
 }
 
-die() {
-    echo "ERROR: $*" >&2
-    exit 1
-}
-
-package_install_heartbeat() {
-    local started_at=$SECONDS
-    local elapsed minutes seconds
-
-    while sleep 30; do
-        elapsed=$((SECONDS - started_at))
-        minutes=$((elapsed / 60))
-        seconds=$((elapsed % 60))
-        printf '\n[installer] Package installation is still active -- elapsed %dm %02ds.\n' \
-            "$minutes" "$seconds"
-        printf '[installer] Long pauses while Debian rebuilds manual-page indexes are normal.\n'
-    done
-}
-
 while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --url)
-            [[ $# -ge 2 ]] || die "--url requires a value"
-            KIOSK_URL="$2"
-            shift 2
-            ;;
-        --user)
-            [[ $# -ge 2 ]] || die "--user requires a value"
-            KIOSK_USER="$2"
-            shift 2
-            ;;
-        --refresh-minutes)
-            [[ $# -ge 2 ]] || die "--refresh-minutes requires a value"
-            REFRESH_MINUTES="$2"
-            shift 2
-            ;;
-        --no-refresh)
-            ENABLE_REFRESH=0
-            shift
-            ;;
-        --hide-cursor)
-            HIDE_CURSOR=1
-            shift
-            ;;
-        --show-cursor)
-            HIDE_CURSOR=0
-            shift
-            ;;
-        -h|--help)
-            usage
-            exit 0
-            ;;
-        *)
-            die "Unknown option: $1"
-            ;;
-    esac
+  case "$1" in
+    --camera-url)
+      CAMERA_URL="${2:-}"
+      shift 2
+      ;;
+    --user)
+      VIEWER_USER="${2:-}"
+      shift 2
+      ;;
+    --reboot-time)
+      REBOOT_TIME="${2:-}"
+      shift 2
+      ;;
+    --no-nightly-reboot)
+      NO_REBOOT_JOB=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
 done
 
-[[ $EUID -eq 0 ]] || die "Run this installer with sudo."
-[[ -n "$KIOSK_USER" ]] || die "Use --user USER when sudo was not invoked by the kiosk user."
-id "$KIOSK_USER" >/dev/null 2>&1 || die "User '$KIOSK_USER' does not exist."
-
-if [[ -z "$KIOSK_URL" && -r /etc/default/$PROGRAM_NAME ]]; then
-    # Reinstallation may reuse the existing URL. The file is root-controlled.
-    # shellcheck disable=SC1091
-    source "/etc/default/$PROGRAM_NAME"
+if [[ $EUID -ne 0 ]]; then
+  echo "Run this installer with sudo." >&2
+  exit 1
 fi
 
-[[ "$KIOSK_URL" =~ ^https?://[^[:space:]]+$ ]] || \
-    die "Provide a valid http:// or https:// URL with --url."
-[[ "$REFRESH_MINUTES" =~ ^[1-9][0-9]*$ ]] || \
-    die "--refresh-minutes must be a positive whole number."
-
-source /etc/os-release
-if [[ "${VERSION_CODENAME:-}" != "trixie" ]]; then
-    die "This release targets Raspberry Pi OS/Debian Trixie. Found: ${PRETTY_NAME:-unknown}."
+if [[ -z "$CAMERA_URL" ]]; then
+  echo "--camera-url is required." >&2
+  usage >&2
+  exit 2
 fi
 
-KIOSK_HOME="$(getent passwd "$KIOSK_USER" | cut -d: -f6)"
-[[ -d "$KIOSK_HOME" ]] || die "Home directory for '$KIOSK_USER' was not found."
+if ! id "$VIEWER_USER" >/dev/null 2>&1; then
+  echo "Linux user '$VIEWER_USER' does not exist." >&2
+  exit 1
+fi
 
-PACKAGES=(
-    cog
-    cage
-    bubblewrap
-    libgles2
-    dbus-user-session
-    gstreamer1.0-tools
-    gstreamer1.0-alsa
-    gstreamer1.0-plugins-base
-    gstreamer1.0-plugins-good
-    gstreamer1.0-plugins-bad
-    gstreamer1.0-plugins-ugly
-    gstreamer1.0-libav
-    fonts-dejavu-core
-    fonts-liberation2
-    fonts-noto-core
-)
+if [[ ! "$REBOOT_TIME" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]]; then
+  echo "--reboot-time must be HH:MM in 24-hour format." >&2
+  exit 2
+fi
 
-echo "Installing Cog, Cage, media support, fonts, and D-Bus support..."
+echo "[installer] Updating package lists..."
 apt-get update
 
-package_install_heartbeat &
-HEARTBEAT_PID=$!
-trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
+echo "[installer] Installing Cage and GStreamer hardware-video support..."
+DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  cage \
+  gstreamer1.0-tools \
+  gstreamer1.0-plugins-base \
+  gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad \
+  gstreamer1.0-plugins-ugly \
+  gstreamer1.0-libav \
+  ca-certificates
 
-if ! DEBIAN_FRONTEND=noninteractive apt-get install -y "${PACKAGES[@]}"; then
-    kill "$HEARTBEAT_PID" 2>/dev/null || true
-    wait "$HEARTBEAT_PID" 2>/dev/null || true
-    trap - EXIT
-    die "Package installation failed. Review the apt/dpkg messages above."
+echo "[installer] Checking for the V4L2 H.264 hardware decoder..."
+if ! gst-inspect-1.0 v4l2h264dec >/dev/null 2>&1; then
+  echo
+  echo "ERROR: GStreamer's v4l2h264dec element is not available."
+  echo "This viewer is intended to use hardware H.264 decoding."
+  exit 1
 fi
 
-kill "$HEARTBEAT_PID" 2>/dev/null || true
-wait "$HEARTBEAT_PID" 2>/dev/null || true
-trap - EXIT
+echo "[installer] Adding '$VIEWER_USER' to video/render groups where available..."
+for grp in video render; do
+  if getent group "$grp" >/dev/null 2>&1; then
+    usermod -aG "$grp" "$VIEWER_USER"
+  fi
+done
 
-# Cage 0.3.1 honors XCURSOR_THEME. Install a self-contained transparent
-# Xcursor theme so unattended signage does not leave a pointer over content.
-# The embedded file is a valid 1x1 fully transparent Xcursor image.
-CURSOR_THEME="lightweight-cog-kiosk-transparent"
-CURSOR_BASE="/usr/local/share/$PROGRAM_NAME/icons"
-CURSOR_ROOT="$CURSOR_BASE/$CURSOR_THEME"
-if [[ $HIDE_CURSOR -eq 1 ]]; then
-    install -d -m 0755 "$CURSOR_ROOT/cursors"
-    printf '%s' \
-        'WGN1chAAAAAAAAEAAQAAAAIA/f8YAAAAHAAAACQAAAACAP3/GAAAAAEAAAABAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAA=' \
-        | base64 --decode > "$CURSOR_ROOT/cursors/left_ptr"
-    chmod 0644 "$CURSOR_ROOT/cursors/left_ptr"
-
-    CURSOR_ALIASES=(
-        default arrow top_left_arrow pointer hand1 hand2 text xterm
-        vertical-text crosshair cell help question_arrow progress wait watch
-        left_ptr_watch move fleur all-scroll not-allowed no-drop copy alias
-        context-menu ew-resize ns-resize nesw-resize nwse-resize col-resize
-        row-resize grab grabbing zoom-in zoom-out
-    )
-    for cursor_name in "${CURSOR_ALIASES[@]}"; do
-        ln -sfn left_ptr "$CURSOR_ROOT/cursors/$cursor_name"
-    done
-
-    printf '%s\n' \
-        '[Icon Theme]' \
-        'Name=Lightweight Cog Kiosk Transparent Cursor' \
-        'Comment=Transparent cursor for unattended kiosk displays' \
-        > "$CURSOR_ROOT/index.theme"
-    chmod 0644 "$CURSOR_ROOT/index.theme"
-
-    # Older Cage builds may request the literal theme name "default". Keep
-    # that lookup inside this application's private cursor search path.
-    ln -sfn "$CURSOR_THEME" "$CURSOR_BASE/default"
-fi
-
+echo "[installer] Writing configuration..."
 install -d -m 0755 /etc/default
-ESCAPED_URL="${KIOSK_URL//\\/\\\\}"
-ESCAPED_URL="${ESCAPED_URL//\"/\\\"}"
-{
-    printf 'KIOSK_URL="%s"\n' "$ESCAPED_URL"
-    printf 'KIOSK_HIDE_CURSOR="%s"\n' "$HIDE_CURSOR"
-    if [[ $HIDE_CURSOR -eq 1 ]]; then
-        printf 'XCURSOR_THEME="%s"\n' "$CURSOR_THEME"
-        printf 'XCURSOR_PATH="%s"\n' "$CURSOR_BASE"
-        printf 'XCURSOR_SIZE="24"\n'
-    fi
-} > "/etc/default/$PROGRAM_NAME"
-chmod 0644 "/etc/default/$PROGRAM_NAME"
+# %q is bash-safe, but EnvironmentFile is not bash. Store only as a comment there;
+# the wrapper reads the raw value from the dedicated URL file instead.
+printf '%s' "$CAMERA_URL" > "/etc/${APP_NAME}.url"
+chmod 0600 "/etc/${APP_NAME}.url"
 
-sed \
-    -e "s|@KIOSK_USER@|$KIOSK_USER|g" \
-    -e "s|@KIOSK_HOME@|$KIOSK_HOME|g" \
-    "$SCRIPT_DIR/systemd/$PROGRAM_NAME.service.in" \
-    > "/etc/systemd/system/$PROGRAM_NAME.service"
+cat > "$CONFIG_FILE" <<EOF
+# Lightweight Camera Viewer
+VIEWER_USER="$VIEWER_USER"
+EOF
+chmod 0644 "$CONFIG_FILE"
 
-install -m 0755 \
-    "$SCRIPT_DIR/scripts/$PROGRAM_NAME-refresh" \
-    "/usr/local/sbin/$PROGRAM_NAME-refresh"
+echo "[installer] Installing viewer launcher..."
+cat > "$WRAPPER" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
 
-sed \
-    -e "s|@KIOSK_USER@|$KIOSK_USER|g" \
-    "$SCRIPT_DIR/systemd/$PROGRAM_NAME-refresh.service.in" \
-    > "/etc/systemd/system/$PROGRAM_NAME-refresh.service"
-
-sed \
-    -e "s|@REFRESH_MINUTES@|$REFRESH_MINUTES|g" \
-    "$SCRIPT_DIR/systemd/$PROGRAM_NAME-refresh.timer.in" \
-    > "/etc/systemd/system/$PROGRAM_NAME-refresh.timer"
-
-# Migrate the original test installation when present.
-if systemctl list-unit-files kiosk-test.service >/dev/null 2>&1; then
-    systemctl disable --now kiosk-test.service || true
+URL_FILE="/etc/lightweight-camera-viewer.url"
+if [[ ! -r "$URL_FILE" ]]; then
+  echo "Camera URL file missing: $URL_FILE" >&2
+  exit 1
 fi
 
-systemctl disable --now getty@tty1.service || true
-systemctl daemon-reload
-systemctl enable "$PROGRAM_NAME.service"
-systemctl restart "$PROGRAM_NAME.service"
+CAMERA_URL="$(cat "$URL_FILE")"
 
-if [[ $ENABLE_REFRESH -eq 1 ]]; then
-    systemctl enable "$PROGRAM_NAME-refresh.timer"
-    systemctl restart "$PROGRAM_NAME-refresh.timer"
+case "$CAMERA_URL" in
+  rtsp://*)
+    exec /usr/bin/gst-launch-1.0 -q \
+      rtspsrc location="$CAMERA_URL" latency=100 protocols=tcp \
+      ! rtph264depay \
+      ! h264parse \
+      ! v4l2h264dec \
+      ! videoconvert \
+      ! waylandsink fullscreen=true
+    ;;
+  http://*|https://*)
+    exec /usr/bin/gst-launch-1.0 -q \
+      souphttpsrc location="$CAMERA_URL" \
+      ! qtdemux \
+      ! h264parse \
+      ! v4l2h264dec \
+      ! videoconvert \
+      ! waylandsink fullscreen=true
+    ;;
+  *)
+    echo "Unsupported CAMERA_URL scheme: $CAMERA_URL" >&2
+    echo "Use an H.264 RTSP URL or a progressive MP4 HTTP/HTTPS URL." >&2
+    exit 2
+    ;;
+esac
+EOF
+chmod 0755 "$WRAPPER"
+
+echo "[installer] Installing systemd service..."
+cat > "$SERVICE_FILE" <<EOF
+[Unit]
+Description=Lightweight Hardware Camera Viewer
+Wants=network-online.target
+After=network-online.target systemd-user-sessions.service
+Conflicts=getty@tty1.service
+
+[Service]
+User=$VIEWER_USER
+PAMName=login
+WorkingDirectory=/home/$VIEWER_USER
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+
+TTYPath=/dev/tty1
+StandardInput=tty-force
+StandardOutput=journal
+StandardError=journal
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+
+ExecStart=/usr/bin/cage -s -- $WRAPPER
+
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+KillMode=mixed
+TimeoutStopSec=5
+SendSIGKILL=yes
+
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# If the older Cog kiosk project exists, disable it so both do not fight over tty1.
+if systemctl list-unit-files lightweight-cog-kiosk.service >/dev/null 2>&1; then
+  echo "[installer] Disabling old lightweight-cog-kiosk service..."
+  systemctl disable --now lightweight-cog-kiosk.service >/dev/null 2>&1 || true
+fi
+
+if [[ "$NO_REBOOT_JOB" -eq 0 ]]; then
+  hour="${REBOOT_TIME%:*}"
+  minute="${REBOOT_TIME#*:}"
+  # Strip leading zeroes so cron receives normal numeric values.
+  hour=$((10#$hour))
+  minute=$((10#$minute))
+  echo "[installer] Installing nightly reboot job for $REBOOT_TIME..."
+  cat > "$CRON_FILE" <<EOF
+# Managed by lightweight-camera-viewer
+$minute $hour * * * root /sbin/reboot
+EOF
+  chmod 0644 "$CRON_FILE"
 else
-    systemctl disable --now "$PROGRAM_NAME-refresh.timer" 2>/dev/null || true
+  rm -f "$CRON_FILE"
 fi
+
+echo "[installer] Enabling camera viewer..."
+systemctl daemon-reload
+systemctl enable "$SERVICE_NAME"
+systemctl restart "$SERVICE_NAME"
 
 echo
 echo "Installation complete."
-echo "URL: $KIOSK_URL"
-echo "User: $KIOSK_USER"
-if [[ $HIDE_CURSOR -eq 1 ]]; then
-    echo "Mouse cursor: hidden"
+echo "Service:  $SERVICE_NAME"
+echo "User:     $VIEWER_USER"
+echo "Decoder:  v4l2h264dec"
+if [[ "$NO_REBOOT_JOB" -eq 0 ]]; then
+  echo "Reboot:   nightly at $REBOOT_TIME"
 else
-    echo "Mouse cursor: visible"
-fi
-if [[ $ENABLE_REFRESH -eq 1 ]]; then
-    echo "Page reload watchdog: every $REFRESH_MINUTES minutes"
-else
-    echo "Page reload watchdog: disabled"
+  echo "Reboot:   nightly reboot disabled"
 fi
 echo
-echo "Check status with:"
-echo "  systemctl status $PROGRAM_NAME.service --no-pager"
-echo "  systemctl status $PROGRAM_NAME-refresh.timer --no-pager"
+echo "Status:"
+echo "  systemctl status $SERVICE_NAME --no-pager"
+echo
+echo "Logs:"
+echo "  journalctl -u $SERVICE_NAME -b --no-pager -n 100"
