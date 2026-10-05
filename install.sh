@@ -98,6 +98,7 @@ apt-get update
 echo "[installer] Installing Cage and GStreamer hardware-video support..."
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
   cage \
+  wlrctl \
   gstreamer1.0-tools \
   gstreamer1.0-plugins-base \
   gstreamer1.0-plugins-good \
@@ -198,6 +199,7 @@ TTYVHangup=yes
 TTYVTDisallocate=yes
 
 ExecStart=/usr/bin/cage -s -- $WRAPPER
+ExecStartPost=-/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10; do XDG_RUNTIME_DIR=/run/user/\$(id -u) WAYLAND_DISPLAY=wayland-0 /usr/bin/wlrctl pointer move -10000 10000 && exit 0; sleep 1; done; exit 0'
 
 Restart=always
 RestartSec=5
