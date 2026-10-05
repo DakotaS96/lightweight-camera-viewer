@@ -146,25 +146,189 @@ For older Raspberry Pis, use go2rtc unless you already know the camera's direct 
 
 The following section is written for someone starting with a newly flashed Raspberry Pi.
 
-## Step 1 - Flash Raspberry Pi OS
+## Step 1 — Flash Raspberry Pi OS
 
-Use Raspberry Pi Imager and install:
+This guide uses Raspberry Pi Imager to install Raspberry Pi OS onto a microSD card.
 
-```text
-Raspberry Pi OS Lite
-```
+The example shown here uses a Raspberry Pi 3 Model A+ and Raspberry Pi OS Lite 32-bit. The 32-bit Lite image is recommended for older Raspberry Pis and models with only 512 MB of memory.
 
-The 32-bit Lite image is appropriate for older Raspberry Pis such as the Raspberry Pi 3 A+.
+Raspberry Pi 4 and newer models can generally use either the 32-bit or 64-bit Lite image. However, the 32-bit image is the configuration used to test this project on the Raspberry Pi 3 A+.
 
-In Raspberry Pi Imager, configure:
+1. Insert the microSD card
 
-- hostname
-- username
-- password
-- Wi-Fi, if required
-- SSH access
+Insert the microSD card into your computer using an SD card reader or USB adapter.
 
-Then insert the microSD card into the Raspberry Pi and boot it.
+Any existing data on the card will be erased, so make sure the card does not contain anything you need to keep.
+
+2. Open Raspberry Pi Imager
+
+Download and open Raspberry Pi Imager from:
+
+https://www.raspberrypi.com/software/
+
+3. Select the Raspberry Pi model
+
+Under Device, select the Raspberry Pi model you are configuring.
+
+For a Raspberry Pi 3 A+, select:
+
+Raspberry Pi 3
+
+If you are using a different Raspberry Pi, select its corresponding model.
+
+Click Next.
+
+4. Select Raspberry Pi OS Lite
+
+Under OS, select:
+
+Raspberry Pi OS (other)
+
+Then select:
+
+Raspberry Pi OS Lite (32-bit)
+
+Raspberry Pi OS Lite does not include a desktop environment. This keeps the installation small and leaves more memory available for the kiosk or camera viewer.
+
+5. Select the microSD card
+
+Under Storage, select the microSD card or USB card reader that contains the card.
+
+Check the device name and capacity carefully. The selected storage device will be completely erased.
+
+6. Configure the hostname
+
+Open the Customisation section.
+
+Under Hostname, enter a unique name for the Raspberry Pi. For example:
+
+basement-pi
+
+Use a descriptive name that identifies the Pi’s location or purpose. A hostname should contain only letters, numbers, and hyphens.
+
+Each Raspberry Pi on the network should have a different hostname.
+
+Click Next.
+
+7. Configure localisation
+
+Under Localisation, select the appropriate settings for your location.
+
+For example:
+
+Capital city: Washington, D.C. (United States)
+Time zone: America/Chicago
+Keyboard layout: us
+
+Choose the time zone and keyboard layout that apply to your location.
+
+Click Next.
+
+8. Create the Linux user account
+
+Under User, enter the username and password that you will use to manage the Raspberry Pi.
+
+For example:
+
+Username: kioskuser
+
+The username must be lowercase. It may contain letters, numbers, underscores, and hyphens.
+
+Choose a secure password and save it somewhere safe. You will need this username and password when connecting to the Raspberry Pi through SSH and when running administrative commands.
+
+Click Next.
+
+9. Configure Wi-Fi
+
+Under Wi-Fi, select Secure Network and choose or enter your wireless network.
+
+Enter:
+
+The Wi-Fi network name, also called the SSID
+
+The Wi-Fi password
+
+The correct wireless country, if requested
+
+Make sure the information is correct. The Raspberry Pi must have network access before it can download and install the required packages.
+
+If the Raspberry Pi will use a wired Ethernet connection, Wi-Fi configuration may be skipped.
+
+Click Next.
+
+10. Enable SSH access
+
+Under Remote access, turn on:
+
+Enable SSH
+
+For a simple first installation, select:
+
+Use password authentication
+
+This allows you to connect to the Raspberry Pi remotely using the username and password created in the previous step.
+
+Public-key authentication is more secure and may be used instead if you already know how to configure SSH keys.
+
+Click Next.
+
+11. Leave Raspberry Pi Connect disabled
+
+Under Raspberry Pi Connect, leave the option disabled unless you specifically plan to use the Raspberry Pi Connect remote-access service.
+
+Raspberry Pi Connect is not required for this project.
+
+Click Next.
+
+12. Review the configuration
+
+Raspberry Pi Imager will display a summary of the selected options.
+
+Verify that the following items are correct:
+
+Raspberry Pi model
+
+Raspberry Pi OS Lite image
+
+Storage device
+
+Hostname
+
+Localisation
+
+User account
+
+Wi-Fi configuration
+
+SSH enabled
+
+Click Write.
+
+13. Confirm that the card can be erased
+
+Raspberry Pi Imager will warn that all data on the selected storage device will be erased.
+
+Verify the storage device one final time, then click:
+
+I UNDERSTAND, ERASE AND WRITE
+
+Do not remove the microSD card while Raspberry Pi Imager is writing or verifying the image.
+
+14. Boot the Raspberry Pi
+
+When Raspberry Pi Imager reports that the process is complete:
+
+Safely remove the microSD card from the computer.
+
+Insert it into the Raspberry Pi.
+
+Connect the monitor or television.
+
+Connect any required keyboard, network cable, or other accessories.
+
+Connect power to start the Raspberry Pi.
+
+The first boot may take several minutes. After it finishes starting, the Raspberry Pi should connect to the configured network and accept SSH connections.
 
 ---
 
