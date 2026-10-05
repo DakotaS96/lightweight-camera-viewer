@@ -98,6 +98,7 @@ apt-get update
 echo "[installer] Installing Cage and GStreamer hardware-video support..."
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
   cage \
+  seatd \
   wlrctl \
   gstreamer1.0-tools \
   gstreamer1.0-plugins-base \
@@ -122,12 +123,18 @@ for grp in video render; do
   fi
 done
 
+echo "[installer] Enabling seat management..."
+systemctl enable --now seatd.service
+
+
 echo "[installer] Writing configuration..."
 install -d -m 0755 /etc/default
 # %q is bash-safe, but EnvironmentFile is not bash. Store only as a comment there;
 # the wrapper reads the raw value from the dedicated URL file instead.
 printf '%s' "$CAMERA_URL" > "/etc/${APP_NAME}.url"
-chmod 0600 "/etc/${APP_NAME}.url"
+VIEWER_GROUP="$(id -gn "$VIEWER_USER")"
+chown root:"$VIEWER_GROUP" "/etc/${APP_NAME}.url"
+chmod 0640 "/etc/${APP_NAME}.url"
 
 cat > "$CONFIG_FILE" <<EOF
 # Lightweight Camera Viewer
@@ -199,7 +206,7 @@ TTYVHangup=yes
 TTYVTDisallocate=yes
 
 ExecStart=/usr/bin/cage -s -- $WRAPPER
-ExecStartPost=-/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10; do XDG_RUNTIME_DIR=/run/user/\$(id -u) WAYLAND_DISPLAY=wayland-0 /usr/bin/wlrctl pointer move -10000 10000 && exit 0; sleep 1; done; exit 0'
+ExecStartPost=-/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10; do if [ -S "\$XDG_RUNTIME_DIR/wayland-0" ]; then WAYLAND_DISPLAY=wayland-0 /usr/bin/wlrctl pointer move -10000 10000 && exit 0; fi; sleep 1; done; exit 0'
 
 Restart=always
 RestartSec=5
