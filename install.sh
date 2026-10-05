@@ -195,7 +195,7 @@ Conflicts=getty@tty1.service
 User=$VIEWER_USER
 PAMName=login
 WorkingDirectory=/home/$VIEWER_USER
-Environment=XDG_RUNTIME_DIR=/run/user/%U
+Environment=XDG_RUNTIME_DIR=/run/user/$(id -u "$VIEWER_USER")
 
 TTYPath=/dev/tty1
 StandardInput=tty-force
