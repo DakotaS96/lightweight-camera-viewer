@@ -146,7 +146,7 @@ For older Raspberry Pis, use go2rtc unless you already know the camera's direct 
 
 The following section is written for someone starting with a newly flashed Raspberry Pi.
 
-## ## Step 1 — Flash Raspberry Pi OS
+## Step 1 — Flash Raspberry Pi OS
 
 Use **Raspberry Pi Imager** to install Raspberry Pi OS onto the microSD card.
 
