@@ -332,22 +332,28 @@ If the stream plays there, continue with the installation.
 ---
 
 ## Step 7 - Run the installer
-From inside the lightweight-camera-viewer directory, first make sure the installer is executable:
+
+From inside the `lightweight-camera-viewer` directory, first make sure the installer is executable:
+
+```bash
 chmod +x install.sh
+```
 
 Then run:
-sudo ./install.sh \
-  --camera-url "http://GO2RTC_IP:1984/api/stream.mp4?src=CAMERA_NAME"
 
-Replace GO2RTC_IP and CAMERA_NAME with your actual values.
+```bash
+sudo ./install.sh --camera-url "http://GO2RTC_IP:1984/api/stream.mp4?src=CAMERA_NAME"
+```
+
+Replace `GO2RTC_IP` and `CAMERA_NAME` with your actual values.
+
 Example:
-sudo ./install.sh \
-  --camera-url "http://192.168.86.47:1984/api/stream.mp4?src=FrontDoor"
+
+```bash
+sudo ./install.sh --camera-url "http://192.168.1.50:1984/api/stream.mp4?src=FrontDoor"
+```
 
 Keep the entire camera URL inside quotation marks.
-You can also run it on one line if you prefer:
-sudo ./install.sh --camera-url "http://192.168.86.47:1984/api/stream.mp4?src=FrontDoor"
----
 
 # What the installer does
 
