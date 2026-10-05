@@ -336,12 +336,6 @@ If the stream plays there, continue with the installation.
 From inside the `lightweight-camera-viewer` directory, first make sure the installer is executable:
 
 ```bash
-chmod +x install.sh
-```
-
-Then run:
-
-```bash
 sudo ./install.sh --camera-url "http://GO2RTC_IP:1984/api/stream.mp4?src=CAMERA_NAME"
 ```
 
