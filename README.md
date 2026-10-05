@@ -62,7 +62,9 @@ On older Raspberry Pis this is much lighter than opening a browser-based camera 
 Before installing, you should have:
 
 1. A Raspberry Pi.
-2. A microSD card with Raspberry Pi OS Lite installed.
+2. 2. A microSD card with Raspberry Pi OS Lite installed.
+   - For Raspberry Pi 3 A+, Pi Zero 2 W, and other 512 MB models, Raspberry Pi OS Lite 32-bit is recommended.
+   - Raspberry Pi 4 and newer models can generally use either 32-bit or 64-bit.
 3. Network access on the Raspberry Pi.
 4. SSH enabled, or a keyboard and monitor connected.
 5. A go2rtc server already running if using an older Raspberry Pi.
